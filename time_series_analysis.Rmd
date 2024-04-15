@@ -1,0 +1,106 @@
+---
+title: "Time_series"
+author: "Krishna Poudel"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+#Loading libraries and time series data (.csv file)
+library(tidyverse)#For data manipulation
+library(forecast) # For forecasting of time series analysis
+library(zoo)      # For time series analysis
+library(ggplot2)  #For data visualisation
+
+data <- read.csv("hawai.csv")
+
+#Checking the structure of data
+str(data)
+```
+```{r}
+#Step.2.Conversion to time series format
+#Conversion to distinct format (YYYY-MM)
+data$date <- as.yearmon(data$time, "%Y.%m")
+
+#Data visualisation of time series plot
+ggplot(data, aes(x = date, y = CO2)) + geom_line() +
+  labs(title = "Atmospheric CO2 in Hawaii (1958-2001)", x = "Date",
+  y = "CO2 (ppm)")
+
+```
+```{r}
+# Step 3. Split data into training and test sets (70% training)
+train_size <- floor(nrow(data) * 0.7)
+train_data <- data[1:train_size, ]
+test_data <- data[(train_size + 1):nrow(data), ]
+
+#Inspecting the data
+head(train_data)
+tail(test_data)
+
+#checking if the test is good
+nrow(train_data) / nrow(test_data) >= 0.7
+
+#Checking row counts
+nrow(train_data) + nrow(test_data) == nrow(data)
+```
+
+
+```{r}
+#Step.4.Fitting in Seasonal ARIMA model
+model <- auto.arima(train_data$CO2)
+
+# Forecasting for the test period
+forecasts <- forecast(model, h = nrow(test_data))
+plot_data <- data.frame(date = test_data$date, actual = test_data$CO2,
+forecast = forecasts$mean)
+
+
+# Evaluate the Model
+
+comparison <- data.frame(Actual = test_data$CO2, Forecasted = forecasts$mean)
+
+accuracy_metrics <- accuracy(forecasts, test_data$CO2)
+
+# Plotting forecast value vs actual value
+plot_data <- data.frame(
+  date = test_data$date,
+  actual = test_data$CO2,
+  forecast = forecasts$mean,
+  lower = forecasts[["lower"]][, "80%"], 
+  upper = forecasts[["upper"]][, "80%"])
+
+ggplot(data = plot_data, aes(x = date)) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "grey80", alpha = 0.5) +
+  geom_line(aes(y = actual, color = "Actual"), linetype = "solid") +
+  geom_line(aes(y = forecast, color = "Forecast"), linetype = "dashed") +
+  labs(title = "Actual vs. Forecasted CO2 Levels", x = "Date", y = "CO2 (ppm)",
+ color = "Line Type") + scale_color_manual(values = 
+  c("Actual" = "blue", "Forecast" = "red"))
+
+```
+```
+```{r}
+```{r}
+# Step 5. Residual analysis
+
+residuals <- test_data$CO2 - forecasts$mean
+
+Residual_df <- data.frame(Date = test_data$date, Residuals = residuals)
+
+#Checking for normality of residuals
+shapiro.test(residuals)
+
+#Plotting residuals vs time
+ggplot(Residual_df, aes(x = Date, y = Residuals)) + geom_line() +
+  labs(title = "Residuals Over Time", x = "Date", y = "Residual")
+
+#Checking for normality of residual distribution
+
+ggplot(Residual_df, aes(x = Residuals)) +
+  geom_histogram(binwidth = 0.5, fill = "Green", color = "black") +
+  labs(title = "Histogram of Residuals", x = "Residuals", y = "Frequency")
+```
+
+
+
